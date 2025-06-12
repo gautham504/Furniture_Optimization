@@ -11,7 +11,9 @@ This project implements and benchmarks the Pelican Optimization Algorithm (POA) 
 - Output and sample run included
 
 ---
+The Repo contains a .py and an .ipynb file; the .py file can be used directly in Colab or Conda
 
+---
 ## Requirements
 
 - Python 3.8+
@@ -26,3 +28,4 @@ To install dependencies, run:
 
 ```sh
 pip install -r requirements.txt
+
