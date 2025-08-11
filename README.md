@@ -28,4 +28,8 @@ To install dependencies, run:
 
 ```sh
 pip install -r requirements.txt
+```
 
+### UPDATE:
+
+We removed the warning **FigureCanvasAgg is non-interactive and thus cannot be shown.**. It was a library warning and was not directly related to our code.
