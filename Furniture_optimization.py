@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -18,6 +19,7 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import json
 
+# %%
 class ObstacleType(Enum):
     FULL_BLOCKING = "full_blocking"
     PARTIAL_BLOCKING = "partial_blocking"
@@ -54,12 +56,13 @@ class Obstacle:
         if self.stackable_on is None:
             self.stackable_on = []
 
+# %%
 def set_random_seed(seed=42):
     """Set random seeds for all random number generators used"""
     random.seed(seed)
     np.random.seed(seed)
-    # If you use other libraries with randomness, set their seeds here too
 
+# %%
 class Solution:
     """Base class for representing a furniture arrangement solution"""
     def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
@@ -73,9 +76,9 @@ class Solution:
       self.position = np.zeros(self.num_obstacles * 3)
       self.fitness = 0.0
       self.walkable_percentage = 0.0  # Initialize walkable percentage
-      self._initialize_smart_positions()
+      self._initialize_positions()
 
-    def _initialize_smart_positions(self):
+    def _initialize_positions(self):
         """Initialize positions with non-overlapping heuristic considering doors/windows"""
         placed_rects = []
         # Create exclusion zones around doors for clearance
@@ -257,7 +260,7 @@ class Solution:
               y_end = min(grid_height, int(np.ceil(y_max / grid_size)))
               occupancy_grid[y_start:y_end, x_start:x_end] = 1
 
-      walkable_cells = np.sum(occupancy_grid == 0)
+      walkable_cells = np.count_nonzero(occupancy_grid == 0)
       total_cells = grid_width * grid_height
       walkable_percentage = walkable_cells / total_cells if total_cells > 0 else 0
 
@@ -562,10 +565,11 @@ class Solution:
               x_end = min(grid_width, int(np.ceil((x + w) / grid_size)))
               y_end = min(grid_height, int(np.ceil((y + h) / grid_size)))
               occupancy_grid[y_start:y_end, x_start:x_end] = 1
-
-      walkable_cells = np.sum(occupancy_grid == 0)
+        
+      walkable_cells = np.count_nonzero(occupancy_grid == 0)
       total_cells = grid_width * grid_height
       walkable_pct = (walkable_cells / total_cells if total_cells > 0 else 0) * 100
+      self.walkable_percentage = walkable_pct
 
       # Draw furniture
       colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F39C12', '#E74C3C']
@@ -835,11 +839,11 @@ class Solution:
           ))
 
       # Update layout
-      walkable_pct = self.walkable_percentage * 100 if hasattr(self, 'walkable_percentage') else 0
+      walkable_pct = self.walkable_percentage
       fitness_value = self.fitness
 
       fig.update_layout(
-          title=f'{title}<br>Walkable Area: {walkable_pct:.1f}% | Fitness: {fitness_value:.3f}',
+          title=f'{title}<br>Walkable Area: {walkable_pct:.2f}% | Fitness: {fitness_value:.3f}',
           scene=dict(
               xaxis_title='X (width)',
               yaxis_title='Y (depth)',
@@ -894,16 +898,12 @@ class Solution:
         new_solution.fitness = self.fitness
         return new_solution
 
+# %%
 # Optimization Algorithm Classes
 class OptimizationAlgorithm(ABC):
     """Abstract base class for optimization algorithms"""
     def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
-                 wall_features: List[WallFeature] = None, population_size: int = 50, max_iterations: int = 100, seed=42):
-        # Store the seed
-        self.seed = seed
-        # Initialize with seed
-        set_random_seed(self.seed)
-
+                 wall_features: List[WallFeature] = None, population_size: int = 50, max_iterations: int = 100):
         self.obstacles = obstacles
         self.room_width = room_width
         self.room_height = room_height
@@ -923,6 +923,7 @@ class OptimizationAlgorithm(ABC):
         """Create a random solution"""
         return Solution(self.obstacles, self.room_width, self.room_height, self.wall_features)
 
+# %%
 class PelicanOptimizationAlgorithm(OptimizationAlgorithm):
     """Enhanced Pelican Optimization Algorithm implementation"""
     def optimize(self) -> Solution:
@@ -1022,6 +1023,7 @@ class PelicanOptimizationAlgorithm(OptimizationAlgorithm):
                 solution.position[i + 1] = np.clip(solution.position[i + 1], 0, self.room_height - h_furniture)
                 solution.position[i + 2] = np.clip(solution.position[i + 2], 0, 3.99)
 
+# %%
 class GeneticAlgorithm(OptimizationAlgorithm):
     """Genetic Algorithm implementation for comparison"""
     def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
@@ -1087,6 +1089,12 @@ class GeneticAlgorithm(OptimizationAlgorithm):
 
             self.fitness_history.append(self.best_solution.fitness)
             self.population_history.append(self.best_solution.copy())
+            
+            if len(self.fitness_history) > 50:
+                recent_improvements = [abs(self.fitness_history[i] - self.fitness_history[i-1]) for i in range(-30, 0)]
+                if all(imp < 1e-5 for imp in recent_improvements):
+                    print(f"GA early stopping at iteration {iteration}")
+                    break
 
         return self.best_solution
 
@@ -1121,6 +1129,7 @@ class GeneticAlgorithm(OptimizationAlgorithm):
                     solution.position[i] += random.uniform(-0.3, 0.3)
                     solution.position[i] = max(0, min(max_val, solution.position[i]))
 
+# %%
 class ParticleSwarmOptimization(OptimizationAlgorithm):
     """Particle Swarm Optimization implementation for comparison"""
     def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
@@ -1199,9 +1208,216 @@ class ParticleSwarmOptimization(OptimizationAlgorithm):
 
             self.fitness_history.append(self.best_solution.fitness)
             self.population_history.append(self.best_solution.copy())
+            
+            if len(self.fitness_history) > 50:
+                recent_improvements = [abs(self.fitness_history[i] - self.fitness_history[i-1]) for i in range(-30, 0)]
+                if all(imp < 1e-5 for imp in recent_improvements):
+                    print(f"PSO early stopping at iteration {iteration}")
+                    break
 
         return self.best_solution
 
+# %%
+class SimulatedAnnealing(OptimizationAlgorithm):
+    """Simulated Annealing implementation for furniture layout optimization"""
+    def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
+                 wall_features: List[WallFeature] = None, population_size: int = 50, max_iterations: int = 100,
+                 initial_temp: float = 100.0, final_temp: float = 0.01, cooling_rate: float = 0.94,
+                 seed: int = 42):
+        # Note: population_size is kept for interface consistency but not used in SA
+        super().__init__(obstacles, room_width, room_height, wall_features, population_size, max_iterations)
+        self.initial_temp = initial_temp
+        self.final_temp = final_temp
+        self.cooling_rate = cooling_rate
+        self.current_solution = None
+        self.current_temp = initial_temp
+
+    def update_temperature(self):
+      """Update temperature using exponential cooling schedule"""
+      self.current_temp *= self.cooling_rate
+      if self.current_temp < self.final_temp:
+          self.current_temp = self.final_temp
+
+    def optimize(self) -> Solution:
+        """Run the Simulated Annealing optimization"""
+        # Initialize with a single solution
+        self.current_solution = self.create_random_solution()
+        self.current_solution.fitness = self.current_solution.calculate_fitness()
+
+        # Track best solution found
+        self.best_solution = self.current_solution.copy()
+        self.fitness_history = [self.best_solution.fitness]
+        self.population_history = [self.best_solution.copy()]
+
+        # Initialize temperature
+        self.current_temp = self.initial_temp
+
+        # Calculate temperature step for linear cooling as alternative
+        temp_step = (self.initial_temp - self.final_temp) / self.max_iterations
+
+        for iteration in range(self.max_iterations):
+            # Generate neighbor solution
+            neighbor = self._generate_neighbor(self.current_solution)
+            neighbor.fitness = neighbor.calculate_fitness()
+
+            # Calculate fitness difference
+            delta_fitness = neighbor.fitness - self.current_solution.fitness
+
+            # Accept or reject the neighbor
+            if self._accept_solution(delta_fitness, self.current_temp):
+                self.current_solution = neighbor
+
+            # Update best solution if current is better
+            if self.current_solution.fitness > self.best_solution.fitness:
+                self.best_solution = self.current_solution.copy()
+
+            # Cool down temperature - using exponential cooling
+            self.current_temp *= self.cooling_rate
+
+            # Alternative linear cooling (uncomment to use instead):
+            # self.current_temp = max(self.final_temp, self.initial_temp - temp_step * iteration)
+
+            # Ensure minimum temperature
+            if self.current_temp < self.final_temp:
+                self.current_temp = self.final_temp
+
+            # Track progress
+            self.fitness_history.append(self.best_solution.fitness)
+            self.population_history.append(self.best_solution.copy())
+
+            # Early stopping condition (optional)
+            if len(self.fitness_history) > 50:
+                recent_improvements = [abs(self.fitness_history[i] - self.fitness_history[i-1])
+                                     for i in range(-30, 0)]
+                if all(imp < 1e-5 for imp in recent_improvements):
+                    print(f"SA early stopping at iteration {iteration}")
+                    break
+
+        return self.best_solution
+
+    def _generate_neighbor(self, current_solution: Solution) -> Solution:
+        """Generate a neighbor solution by perturbing the current solution"""
+        neighbor = current_solution.copy()
+
+        # Choose perturbation strategy randomly
+        perturbation_type = random.choice(['position', 'rotation', 'swap', 'multiple'])
+
+        if perturbation_type == 'position':
+            # Perturb position of a random furniture piece
+            furniture_idx = random.randint(0, len(self.obstacles) - 1)
+            pos_idx = furniture_idx * 3
+
+            # Get current rotation to determine furniture dimensions
+            rotation = int(neighbor.position[pos_idx + 2]) % 4
+            obstacle = self.obstacles[furniture_idx]
+
+            if rotation in [1, 3]:
+                max_x = self.room_width - obstacle.height
+                max_y = self.room_height - obstacle.width
+            else:
+                max_x = self.room_width - obstacle.width
+                max_y = self.room_height - obstacle.height
+
+            # Apply Gaussian perturbation with boundary constraints
+            sigma = max(0.1, self.current_temp / self.initial_temp * 0.5)  # Adaptive step size
+            neighbor.position[pos_idx] += np.random.normal(0, sigma)
+            neighbor.position[pos_idx + 1] += np.random.normal(0, sigma)
+
+            # Ensure constraints
+            neighbor.position[pos_idx] = np.clip(neighbor.position[pos_idx], 0, max(0.1, max_x))
+            neighbor.position[pos_idx + 1] = np.clip(neighbor.position[pos_idx + 1], 0, max(0.1, max_y))
+
+        elif perturbation_type == 'rotation':
+            # Change rotation of a random furniture piece
+            furniture_idx = random.randint(0, len(self.obstacles) - 1)
+            pos_idx = furniture_idx * 3 + 2
+            neighbor.position[pos_idx] = random.randint(0, 3)
+
+            # Ensure position constraints after rotation change
+            self._apply_constraints_to_furniture(neighbor, furniture_idx)
+
+        elif perturbation_type == 'swap':
+            # Swap positions of two furniture pieces (if we have more than 1)
+            if len(self.obstacles) >= 2:
+                idx1, idx2 = random.sample(range(len(self.obstacles)), 2)
+                pos1_start, pos2_start = idx1 * 3, idx2 * 3
+
+                # Swap positions (x, y, rotation)
+                temp_pos = neighbor.position[pos1_start:pos1_start + 3].copy()
+                neighbor.position[pos1_start:pos1_start + 3] = neighbor.position[pos2_start:pos2_start + 3]
+                neighbor.position[pos2_start:pos2_start + 3] = temp_pos
+
+                # Apply constraints to both furniture pieces
+                self._apply_constraints_to_furniture(neighbor, idx1)
+                self._apply_constraints_to_furniture(neighbor, idx2)
+            else:
+                # Fall back to position perturbation if only one furniture
+                return self._generate_neighbor_position(neighbor)
+
+        elif perturbation_type == 'multiple':
+            # Perturb multiple furniture pieces (2-3 pieces)
+            num_perturb = min(random.randint(2, 3), len(self.obstacles))
+            furniture_indices = random.sample(range(len(self.obstacles)), num_perturb)
+
+            for furniture_idx in furniture_indices:
+                if random.random() < 0.7:  # 70% chance to perturb position
+                    pos_idx = furniture_idx * 3
+                    sigma = max(0.1, self.current_temp / self.initial_temp * 0.3)
+                    neighbor.position[pos_idx] += np.random.normal(0, sigma)
+                    neighbor.position[pos_idx + 1] += np.random.normal(0, sigma)
+
+                if random.random() < 0.3:  # 30% chance to change rotation
+                    neighbor.position[furniture_idx * 3 + 2] = random.randint(0, 3)
+
+                self._apply_constraints_to_furniture(neighbor, furniture_idx)
+
+        return neighbor
+
+    def _apply_constraints_to_furniture(self, solution: Solution, furniture_idx: int):
+        """Apply constraints to a specific furniture piece"""
+        pos_idx = furniture_idx * 3
+        if furniture_idx < len(self.obstacles):
+            obstacle = self.obstacles[furniture_idx]
+            rotation = int(solution.position[pos_idx + 2]) % 4
+
+            if rotation in [1, 3]:
+                w_furniture, h_furniture = obstacle.height, obstacle.width
+            else:
+                w_furniture, h_furniture = obstacle.width, obstacle.height
+
+            solution.position[pos_idx] = np.clip(solution.position[pos_idx], 0,
+                                               max(0.1, self.room_width - w_furniture))
+            solution.position[pos_idx + 1] = np.clip(solution.position[pos_idx + 1], 0,
+                                                   max(0.1, self.room_height - h_furniture))
+            solution.position[pos_idx + 2] = np.clip(solution.position[pos_idx + 2], 0, 3.99)
+
+    def _generate_neighbor_position(self, current_solution: Solution) -> Solution:
+        """Fallback method for position-only perturbation"""
+        neighbor = current_solution.copy()
+        furniture_idx = random.randint(0, len(self.obstacles) - 1)
+        pos_idx = furniture_idx * 3
+
+        sigma = max(0.1, self.current_temp / self.initial_temp * 0.5)
+        neighbor.position[pos_idx] += np.random.normal(0, sigma)
+        neighbor.position[pos_idx + 1] += np.random.normal(0, sigma)
+
+        self._apply_constraints_to_furniture(neighbor, furniture_idx)
+        return neighbor
+
+    def _accept_solution(self, delta_fitness: float, temperature: float) -> bool:
+        """Determine whether to accept a solution based on SA acceptance criteria"""
+        if delta_fitness > 0:  # Better solution
+            return True
+        elif temperature <= 0:  # No randomness left
+            return False
+        else:  # Worse solution - accept with probability
+            try:
+                acceptance_prob = np.exp(delta_fitness / temperature)
+                return random.random() < acceptance_prob
+            except (OverflowError, ZeroDivisionError):
+                return False
+
+# %%
 class OptimizationComparator:
     """Class for comparing different optimization algorithms"""
     def __init__(self, obstacles: List[Obstacle], room_width: float, room_height: float,
@@ -1264,7 +1480,9 @@ class OptimizationComparator:
                 'Best Fitness': np.max(fitness_scores),
                 'Worst Fitness': np.min(fitness_scores),
                 'Mean Time (s)': np.mean(execution_times),
-                'Std Time (s)': np.std(execution_times)
+                'Std Time (s)': np.std(execution_times),
+                'Best Time': np.min(execution_times),
+                'Worst Time': np.max(execution_times),
             })
 
         df_summary = pd.DataFrame(summary_data)
@@ -1310,9 +1528,8 @@ class OptimizationComparator:
             return
 
         plt.style.use('default')
-        
         # 1. Fitness Score Comparison (Box Plot)
-        fig1 = plt.figure(figsize=(16, 10))
+        fig1 = plt.figure(figsize=(18, 12))
         ax1 = plt.subplot(2, 3, 1)
         fitness_data = []
         labels = []
@@ -1321,11 +1538,11 @@ class OptimizationComparator:
             labels.extend([alg_name] * len(results['fitness_scores']))
         df_fitness = pd.DataFrame({'Algorithm': labels, 'Fitness': fitness_data})
         sns.boxplot(data=df_fitness, x='Algorithm', y='Fitness', ax=ax1)
-        ax1.set_title('Fitness Score Comparison', fontsize=14, fontweight='bold', loc='center')
+        ax1.set_title('Fitness Score Comparison', fontsize=14, fontweight='bold')
         ax1.tick_params(axis='x', rotation=45)
 
         # 2. Execution Time Comparison
-        fig2 = plt.figure(figsize=(12, 10))
+        fig2 = plt.figure(figsize=(18, 12))
         ax2 = plt.subplot(2, 3, 2)
         time_data = []
         labels = []
@@ -1334,12 +1551,12 @@ class OptimizationComparator:
             labels.extend([alg_name] * len(results['execution_times']))
         df_time = pd.DataFrame({'Algorithm': labels, 'Time': time_data})
         sns.boxplot(data=df_time, x='Algorithm', y='Time', ax=ax2)
-        ax2.set_title('Execution Time Comparison', fontsize=14, fontweight='bold', loc='center')
+        ax2.set_title('Execution Time Comparison', fontsize=14, fontweight='bold')
         ax2.set_ylabel('Time (seconds)')
         ax2.tick_params(axis='x', rotation=45)
 
         # 3. Convergence Curves
-        fig3 = plt.figure(figsize=(12, 10))
+        fig3 = plt.figure(figsize=(18, 12))
         ax3 = plt.subplot(2, 3, 3)
         colors = ['red', 'blue', 'green', 'orange', 'purple']
         for i, (alg_name, results) in enumerate(self.results.items()):
@@ -1363,28 +1580,29 @@ class OptimizationComparator:
                                    mean_convergence + std_convergence,
                                    alpha=0.2, color=colors[i % len(colors)])
 
-        ax3.set_title('Convergence Comparison', fontsize=14, fontweight='bold', loc='center')
+        ax3.set_title('Convergence Comparison', fontsize=14, fontweight='bold')
         ax3.set_xlabel('Iteration')
         ax3.set_ylabel('Fitness')
         ax3.legend()
         ax3.grid(True, alpha=0.3)
 
         # 4. Performance Scatter Plot (Fitness vs Time)
-        fig4 = plt.figure(figsize=(12, 10))
+
+        fig4 = plt.figure(figsize=(18, 12))
         ax4 = plt.subplot(2, 3, 4)
         for i, (alg_name, results) in enumerate(self.results.items()):
             fitness_scores = results['fitness_scores']
             execution_times = results['execution_times']
             ax4.scatter(execution_times, fitness_scores, label=alg_name, s=100, alpha=0.7, color=colors[i % len(colors)])
 
-        ax4.set_title('Performance Trade-off', fontsize=14, fontweight='bold', loc='center')
+        ax4.set_title('Performance Trade-off', fontsize=14, fontweight='bold')
         ax4.set_xlabel('Execution Time (seconds)')
         ax4.set_ylabel('Fitness Score')
         ax4.legend()
         ax4.grid(True, alpha=0.3)
 
         # 5. Best Solution Layout
-        fig5 = plt.figure(figsize=(12, 10))
+        fig5 = plt.figure(figsize=(18, 12))
         ax5 = plt.subplot(2, 3, 5)
         best_overall = None
         best_fitness = -1
@@ -1433,10 +1651,10 @@ class OptimizationComparator:
             ax5.set_ylim(-0.2, self.room_height + 0.2)
             ax5.set_aspect('equal')
             ax5.set_title(f'Best Layout ({best_alg_name})\nFitness: {best_fitness:.3f}',
-                        fontsize=12, fontweight='bold', loc='center')
+                        fontsize=12, fontweight='bold')
 
         # 6. Statistical Summary
-        fig6 = plt.figure(figsize=(12, 10))
+        fig6 = plt.figure(figsize=(18, 12))
         ax6 = plt.subplot(2, 3, 6)
         ax6.axis('off')
 
@@ -1462,7 +1680,7 @@ class OptimizationComparator:
 
         return [fig1,fig2,fig3,fig4,fig5,fig6]
 
-# Enhanced Room Layout Designer
+# %%
 class RoomLayoutDesigner:
     """Main class for room layout design with multiple optimization algorithms"""
     def __init__(self, room_width: float, room_height: float):
@@ -1491,12 +1709,15 @@ class RoomLayoutDesigner:
         self.wall_features.append(window)
         return self
 
-    def optimize_layout(self, algorithms: List[str] = None, population_size: int = 50,
-                         max_iterations: int = 100, num_runs: int = 10, seed: int = 42):
+    def optimize_layout_enhanced(self, algorithms: List[str] = None, population_size: int = 50,
+                          max_iterations: int = 100, num_runs: int = 10, seed: int = 42,
+                          sa_initial_temp: float = 100.0, sa_final_temp: float = 0.01,
+                          sa_cooling_rate: float = 0.95):
+        """Enhanced optimize layout method that includes Simulated Annealing"""
         set_random_seed(seed)
-        """Optimize room layout using specified algorithms"""
+
         if algorithms is None:
-            algorithms = ['pelican', 'genetic', 'pso']
+            algorithms = ['pelican', 'genetic', 'pso', 'sa']  # Include SA by default
 
         # Initialize algorithms
         algorithm_instances = {}
@@ -1513,6 +1734,12 @@ class RoomLayoutDesigner:
                 algorithm_instances['PSO'] = ParticleSwarmOptimization(
                     self.obstacles, self.room_width, self.room_height,
                     self.wall_features, population_size, max_iterations)
+            elif alg_name.lower() == 'sa':
+                algorithm_instances['Simulated Annealing'] = SimulatedAnnealing(
+                    self.obstacles, self.room_width, self.room_height,
+                    self.wall_features, population_size, max_iterations,
+                    initial_temp=sa_initial_temp, final_temp=sa_final_temp,
+                    cooling_rate=sa_cooling_rate, seed=seed)
 
         # Run comparison
         comparator = OptimizationComparator(self.obstacles, self.room_width,
@@ -1524,7 +1751,7 @@ class RoomLayoutDesigner:
     def visualize_best_solutions(self, show_2d=True, show_3d=True):
       """Visualize the best solutions from optimization"""
       if not self.optimization_results:
-          print("No optimization results found. Run optimize_layout() first.")
+          print("No optimization results found. Run optimize_layout_Enhanced) first.")
           return
 
       # Get best solutions
@@ -1548,9 +1775,9 @@ class RoomLayoutDesigner:
       if show_3d:
           for i, (alg_name, solution) in enumerate(best_solutions.items()):
               fig_3d = solution.visualize_solution_3d_plotly(title=f"{alg_name} - Best Solution (3D)")
-              fig_3d.show()
+              plt.show()
 
-# Example usage and demonstration
+# %%
 def create_sample_room_layout():
     """Create a sample room layout for demonstration"""
     # Create a bedroom layout
@@ -1570,17 +1797,21 @@ def create_sample_room_layout():
 
     return designer
 
-def run_comprehensive_analysis(show_2d=True, show_3d=True):
-    """Run a comprehensive analysis of room layout optimization"""
+def run_comprehensive_analysis_with_sa(show_2d=True, show_3d=True):
+    """Run comprehensive analysis"""
     print("Creating sample room layout...")
     designer = create_sample_room_layout()
 
     print("Running optimization algorithms...")
-    comparator = designer.optimize_layout(
-        algorithms=['pelican', 'genetic', 'pso'],
+    # Call the enhanced optimize layout function directly
+    comparator = designer.optimize_layout_enhanced(
+        algorithms=['pelican', 'genetic', 'pso', 'sa'],  # Include SA
         population_size=50,
-        max_iterations=100,
-        num_runs=75
+        max_iterations=450,
+        num_runs=75,
+        sa_initial_temp=1.0,    # SA-specific parameters
+        sa_final_temp=1e-5,
+        sa_cooling_rate=0.803
     )
 
     print("Generating comparison report...")
@@ -1589,13 +1820,20 @@ def run_comprehensive_analysis(show_2d=True, show_3d=True):
     print("Creating visualization...")
     figs = comparator.visualize_comparison()
     for fig in figs:
-        fig.show()
-    
+        plt.show()
 
     print("Creating best solution visualizations...")
     designer.visualize_best_solutions(show_2d=show_2d, show_3d=show_3d)
 
     return designer, comparator, summary_df
 
+
+
+# %%
 # Run the comprehensive analysis
-designer, comparator, summary_df = run_comprehensive_analysis()
+designer, comparator,summary = run_comprehensive_analysis_with_sa()
+
+# %%
+summary
+
+
